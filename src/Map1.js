@@ -4,29 +4,29 @@ class Map1 extends Phaser.Scene{
         this.noiseScale = 0.1;
         this.seed = Math.random();
     }
-    preload() {
-        this.load.image('tiles', "./assets/tilemap_packed.png");
-
-    }
 
     create() {
         keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
         keyPeriod = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.PERIOD);
         keyComma = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.COMMA);
+        this.keys = this.input.keyboard.createCursorKeys()
 
         map = this.make.tilemap({ tileWidth: 16, tileHeight: 16, width: 20, height: 15 });
 
         const tileset = map.addTilesetImage('tiles', null, 16, 16, 0, 0);
         this.groundLayer = map.createBlankLayer('Ground', tileset, 0, 0);
         this.decorationLayer = map.createBlankLayer('Decoration', tileset, 0, 0);
-
     
         this.generateMap(this.seed, map.width, map.height);
 
+        this.hero = new Hero(this, game_width / 2, game_height / 2, 'hero', 0, 'down')
+
+        this.physics.world.setBounds(0, 0, game_width, game_height)
     }
 
     generateMap(seed, mapWidth, mapHeight) {
         // Seed the Perlin noise (you can use a fixed seed for deterministic maps)
+        //bit field approach
         noise.seed(seed);
 
         this.groundLayer.fill(-1);
@@ -75,5 +75,7 @@ class Map1 extends Phaser.Scene{
             this.generateMap(this.seed, map.width, map.height)
 
         }
+        this.heroFSM.step()
+        //this.hero.body
     }
 }

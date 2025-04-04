@@ -12,7 +12,7 @@ let config = {
             debug: false
         }
     },
-    scene: [ Map1 ]
+    scene: [ Load, Map1 ]
 }
 
 // define game
