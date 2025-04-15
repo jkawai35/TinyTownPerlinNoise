@@ -22,85 +22,104 @@ class Map1 extends Phaser.Scene{
         this.hero = new Hero(this, game_width / 2, game_height / 2, 'hero', 0, 'down')
 
         this.physics.world.setBounds(0, 0, game_width, game_height)
+
+        this.messageE = this.add.text(game_width-50, game_height/2, 'East', {
+          fontSize: '10px',
+          fill: '#ffffff'
+        });
+
+        this.messageW = this.add.text(50, game_height/2, 'West', {
+          fontSize: '10px',
+          fill: '#ffffff'
+        });
+
+        this.messageN = this.add.text(game_width/2, 50, 'North', {
+          fontSize: '10px',
+          fill: '#ffffff'
+        });
+
+        this.messageS = this.add.text(game_width/2, game_height - 50, 'South', {
+          fontSize: '10px',
+          fill: '#ffffff'
+        });
+
+        this.messageMid = this.add.text(game_width/2, game_height/2, 'Mid', {
+          fontSize: '10px',
+          fill: '#ffffff'
+        });
+
+        this.messageW.setVisible(false);
+        this.messageE.setVisible(false);
+        this.messageN.setVisible(false);
+        this.messageS.setVisible(false);
+        this.messageMid.setVisible(false);
+
     }
+    
 
     generateMap(seed, mapWidth, mapHeight) {
-
-        const roadBitmaskTable = {
-          0: 25,
-          1: 13,
-          2: 26,
-          3: 14,
-          4: 37,
-          6: 38,
-          8: 24,
-          9: 12,
-          11: 13,
-          12: 36,    
-          14: 36,
-          // Fallback
-          default: 25
+      const roadBitmaskTable = {
+        0: 25,
+        1: 13,
+        2: 26,
+        3: 14,
+        4: 37,
+        6: 38,
+        8: 24,
+        9: 12,
+        11: 13,
+        12: 36,    
+        14: 36,
+        default: 25
       };
     
-        // Seed the Perlin noise (you can use a fixed seed for deterministic maps)
-        //bit field approach
-        noise.seed(seed);
+      noise.seed(seed);
+    
+      this.groundLayer.fill(-1);
+      this.decorationLayer.fill(-1);
+    
+      // First pass: generate base terrain and mark roads with base tile (25)
+      for (let x = 0; x < mapWidth; x++) {    
+        for (let y = 0; y < mapHeight; y++) {
+          const noiseValue = noise.perlin2(x * this.noiseScale, y * this.noiseScale);
+    
+          let groundIndex = 0;
+          this.groundLayer.putTileAt(groundIndex, x, y);
 
-        this.groundLayer.fill(-1);
-        this.decorationLayer.fill(-1);
+          if (noiseValue < .2 && noiseValue > -0.1) {
+            this.groundLayer.putTileAt(1, x, y);
+          }
+          if (noiseValue < .1 && noiseValue > 0) {
+            this.groundLayer.putTileAt(2, x, y);
+          }
     
-        for (let x = 0; x < mapWidth; x++) {
-          for (let y = 0; y < mapHeight; y++) {
-            const noiseValue = noise.perlin2(x * this.noiseScale, y * this.noiseScale);
-    
-            let groundIndex;
-            let decorIndex;
-            if (noiseValue < -0.2) {
-              groundIndex = 0;
-              if (noiseValue > -0.25){
-                decorIndex = 28;
-                //this.decorationLayer.putTileAt(decorIndex, x, y);
-              } 
-            } else if (noiseValue < 0.2) {
-              groundIndex = 0;
-            } else {
-              groundIndex = 0;
+          // Overwrite with road tile in designated road area
+          for (let x = 0; x < mapWidth - 1; x += 2) {
+            for (let y = 0; y < mapHeight - 1; y += 2) {
+              const roadNoise = noise.perlin2(x * this.noiseScale, y * this.noiseScale); // or whatever noise scale you want
+              if (roadNoise < -0.15) {
+                this.groundLayer.putTileAt(25, x, y);
+                this.groundLayer.putTileAt(25, x + 1, y);
+                this.groundLayer.putTileAt(25, x, y + 1);
+                this.groundLayer.putTileAt(25, x + 1, y + 1);
+              }
             }
-    
-            this.groundLayer.putTileAt(groundIndex, x, y);
           }
-        }
-
-        noise.seed(Math.random());
-
-        for (let x = 0; x < mapWidth; x++) {
-          const noiseVal = noise.perlin2(x * 0.1, 100); // 1D noise
-          const y = Math.floor((noiseVal + 1) / 2 * (mapHeight - 4)) + 2; // Keep road off edges
-
-          // Draw a vertical strip of 3 road tiles for width
-          for (let dy = -1; dy <= 0; dy++) {
-            if (y + dy >= 0 && y + dy < mapHeight) {
-              this.groundLayer.putTileAt(25, x, y + dy);
-            } 
-          }
-
           
-          for (let x = 0; x < mapWidth; x++) {
-            for (let y = 0; y < mapHeight; y++) {
-                const tile = this.groundLayer.getTileAt(x, y);
-                if (tile.index == 25) {
-                    let bitmask = this.getBitmask(x, y, this.roadLayer);
-                    console.log(bitmask)
-                    const index = roadBitmaskTable[bitmask];
-                    this.groundLayer.putTileAt(index, x, y);
-                    bitmask = 0;
-                }
-            }
         }
-        
+      }
+    
+      // Second pass: apply bitmask and transition tile replacement
+      for (let x = 0; x < mapWidth; x++) {
+        for (let y = 0; y < mapHeight; y++) {
+          const tile = this.groundLayer.getTileAt(x, y);
+          if (tile && tile.index == 25) {
+            const bitmask = this.getBitmask(x, y);
+            const index = roadBitmaskTable[bitmask] ?? roadBitmaskTable.default;
+            this.groundLayer.putTileAt(index, x, y);
+          }
         }
-
-
+      }
     }
 
     adjustNoiseScale(delta) {
@@ -114,18 +133,14 @@ class Map1 extends Phaser.Scene{
       let isGrass = (tx, ty) => {
         let tile = this.groundLayer.getTileAt(tx, ty);
         if (tile){
-          print(tile)
+          return tile && (tile.index == 0 || tile.index == 1 || tile.index == 2 || tile.index == 43);
         }
-        if (tile && tile.index == 0){
-          return true;
-        }
-        return false;
       };
     
-      if (isGrass(x, y - 1)) bitmask += 1; // Up
-      if (isGrass(x + 1, y)) bitmask += 2; // Right
-      if (isGrass(x, y + 1)) bitmask += 4; // Down
-      if (isGrass(x - 1, y)) bitmask += 8; // Left
+      if (isGrass(x, y - 1)) {bitmask |= 1;} // Up
+      if (isGrass(x + 1, y)) {bitmask |= 2;} // Right
+      if (isGrass(x, y + 1)) {bitmask |= 4;} // Down
+      if (isGrass(x - 1, y)) {bitmask |= 8;} // Left
     
       return bitmask;
     }
@@ -144,6 +159,41 @@ class Map1 extends Phaser.Scene{
             this.adjustNoiseScale(-0.01)
             this.generateMap(this.seed, map.width, map.height)
 
+        }
+        
+        let posX = this.hero.x
+        let posY = this.hero.y
+
+        if (posX > 270 && posY > 50 && posY < 190){
+          this.messageE.setVisible(true)
+          this.messageW.setVisible(false);
+          this.messageS.setVisible(false);
+          this.messageN.setVisible(false);
+          this.messageMid.setVisible(false);
+        }else if (posX < 50 && posY > 50 && posY < 190){
+          this.messageE.setVisible(false)
+          this.messageW.setVisible(true);
+          this.messageS.setVisible(false);
+          this.messageN.setVisible(false);
+          this.messageMid.setVisible(false);
+        }else if (posY < 50){
+          this.messageE.setVisible(false)
+          this.messageW.setVisible(false);
+          this.messageS.setVisible(false);
+          this.messageN.setVisible(true);
+          this.messageMid.setVisible(false);
+        }else if (posY > 190){
+          this.messageE.setVisible(false)
+          this.messageW.setVisible(false);
+          this.messageS.setVisible(true);
+          this.messageN.setVisible(false);
+          this.messageMid.setVisible(false);
+        } else {
+          this.messageE.setVisible(false)
+          this.messageW.setVisible(false);
+          this.messageS.setVisible(false);
+          this.messageN.setVisible(false);
+          this.messageMid.setVisible(true);
         }
         this.heroFSM.step()
         //this.hero.body
